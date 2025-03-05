@@ -2,7 +2,7 @@
 
 A modern, responsive web interface for interacting with Ollama language models. This application allows you to chat with various Ollama models through a clean and intuitive UI.
 
-![Ollama Chat Interface](https://via.placeholder.com/800x450.png?text=Ollama+Chat+Interface)
+![Ollama Chat Interface](public/preview.png)
 
 ## Features
 

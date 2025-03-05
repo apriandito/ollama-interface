@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
     return {
       statusCode: 500,
       statusMessage: 'Internal Server Error',
-      content: 'Terjadi kesalahan saat menghubungi Ollama.'
+      content: 'An error occurred while contacting Ollama.'
     }
   }
 })
