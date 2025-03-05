@@ -6,6 +6,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   model?: string
+  thinking?: string
 }
 
 interface ChatRequest {
@@ -34,9 +35,12 @@ export default defineEventHandler(async (event) => {
       messages: messagesForOllama,
     })
 
-    // Return the response
+    // Get the response content
+    const responseContent = response.message.content
+    
+    // Return the response with the original content (including thinking sections)
     return {
-      content: response.message.content,
+      content: responseContent,
       model: model
     }
   } catch (error) {

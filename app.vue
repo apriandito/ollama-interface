@@ -73,6 +73,23 @@
             </div>
             <div class="message-content">
               <div v-if="message.role === 'assistant'" class="message-model">{{ message.model || currentModel }}</div>
+              
+              <!-- Thinking section (for deepseek model) -->
+              <div v-if="message.thinking" class="thinking-section" :class="{ 'expanded': expandedThinking[index] }">
+                <div class="thinking-header" @click="toggleThinking(index)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                  </svg>
+                  <span>View thinking process</span>
+                  <svg class="thinking-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9l6 6 6-6"></path>
+                  </svg>
+                </div>
+                <div class="thinking-content">{{ message.thinking }}</div>
+              </div>
+              
               <div class="message-inner">{{ message.content }}</div>
             </div>
           </div>
@@ -131,12 +148,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick, onUnmounted } from 'vue'
+import { ref, onMounted, watch, nextTick, onUnmounted, computed, reactive } from 'vue'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
   model?: string
+  thinking?: string
 }
 
 const userInput = ref('')
@@ -145,6 +163,7 @@ const loading = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 const inputField = ref<HTMLTextAreaElement | null>(null)
 const modelButton = ref<HTMLElement | null>(null)
+const expandedThinking = reactive<Record<number, boolean>>({})
 
 // Model selection
 const availableModels = ref(['qwen2.5:1.5b', 'deepseek-r1:1.5b', 'llama3.2:latest'])
@@ -168,6 +187,19 @@ const selectModel = (model: string) => {
     content: `Model changed to ${model}`,
     model: model
   })
+}
+
+// Parse content for thinking sections (for deepseek model)
+const parseThinking = (content: string): { content: string, thinking?: string } => {
+  if (!content.includes('<think>')) return { content }
+  
+  const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/)
+  if (!thinkMatch) return { content }
+  
+  const thinking = thinkMatch[1].trim()
+  const cleanContent = content.replace(/<think>[\s\S]*?<\/think>/, '').trim()
+  
+  return { content: cleanContent, thinking }
 }
 
 // Close dropdown when clicking outside
@@ -196,6 +228,7 @@ const autoResize = () => {
 // Clear all messages (new chat)
 const clearMessages = () => {
   messages.value = []
+  Object.keys(expandedThinking).forEach(key => delete expandedThinking[Number(key)])
   if (inputField.value) {
     inputField.value.focus()
   }
@@ -239,12 +272,22 @@ const sendMessage = async () => {
     
     const data = await response.json()
     
+    // Parse thinking section if present
+    const { content, thinking } = parseThinking(data.content)
+    
     // Add assistant message to the chat
+    const messageIndex = messages.value.length
     messages.value.push({
       role: 'assistant',
-      content: data.content,
-      model: currentModel.value
+      content: content,
+      model: currentModel.value,
+      thinking: thinking
     })
+    
+    // Initialize the expanded state for this message
+    if (thinking) {
+      expandedThinking[messageIndex] = false
+    }
   } catch (error) {
     console.error('Failed to send message:', error)
     messages.value.push({
@@ -281,6 +324,11 @@ onMounted(() => {
     }
   })
 })
+
+// Toggle thinking section visibility
+const toggleThinking = (index: number) => {
+  expandedThinking[index] = !expandedThinking[index]
+}
 </script>
 
 <style>
@@ -304,6 +352,9 @@ onMounted(() => {
   --border-radius: 8px;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --thinking-bg: #f8f9fa;
+  --thinking-border: #e9ecef;
+  --thinking-text: #495057;
 }
 
 * {
@@ -564,6 +615,58 @@ html, body {
   background: white;
   color: var(--foreground);
   border: 1px solid var(--gray-200);
+}
+
+/* Thinking section */
+.thinking-section {
+  margin-bottom: 8px;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--thinking-border);
+  overflow: hidden;
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--thinking-bg);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--thinking-text);
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.thinking-header:hover {
+  background-color: var(--gray-200);
+}
+
+.thinking-arrow {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.thinking-section.expanded .thinking-arrow {
+  transform: rotate(180deg);
+}
+
+.thinking-content {
+  padding: 12px;
+  background-color: white;
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--thinking-text);
+  border-top: 1px solid var(--thinking-border);
+  display: none;
+}
+
+.thinking-section.expanded .thinking-content {
+  display: block;
+  max-height: 500px;
+  overflow-y: auto;
 }
 
 /* Loading animation */
